@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contacts List</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        function searchContacts() {
+            let input = document.getElementById("searchBox").value.toLowerCase();
+            let rows = document.querySelectorAll("tbody tr");
+            rows.forEach(row => {
+                let name = row.cells[1].innerText.toLowerCase();
+                let phone = row.cells[2].innerText.toLowerCase();
+                let address = row.cells[3].innerText.toLowerCase();
+                if (name.includes(input) || phone.includes(input) || address.includes(input)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
+        }
+        
+        function editContact(id) {
+            let row = document.getElementById("row-" + id);
+            let name = row.cells[1].innerText;
+            let phone = row.cells[2].innerText;
+            let address = row.cells[3].innerText;
+            
+            let newName = prompt("Enter new name:", name);
+            let newPhone = prompt("Enter new phone number:", phone);
+            let newAddress = prompt("Enter new address:", address);
+            
+            if (newName && newPhone && newAddress) {
+                fetch(`/update_contact/${id}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `field=name&value=${newName}`
+                });
+                fetch(`/update_contact/${id}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `field=phone_number&value=${newPhone}`
+                });
+                fetch(`/update_contact/${id}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `field=address&value=${newAddress}`
+                });
+                location.reload();
+            }
+        }
+        
+        function deleteContact(id) {
+            if (confirm("Are you sure you want to delete this contact?")) {
+                fetch(`/delete_contact/${id}`, { method: "DELETE" })
+                .then(() => location.reload());
+            }
+        }
+    </script>
+</head>
+<body>
+    <h2>Contacts List</h2>
+    <input type="text" id="searchBox" onkeyup="searchContacts()" placeholder="Search contacts...">
+    <table border="1">
+        <thead>
+            <tr>
+                <th>S.No</th>
+                <th>Name</th>
+                <th>Phone Number</th>
+                <th>Address</th>
+                <th>Call</th>
+                <th>Message</th>
+                <th>Edit</th>
+                <th>Delete</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for contact in contacts %}
+            <tr id="row-{{ contact.id }}">
+                <td>{{ loop.index }}</td>
+                <td>{{ contact.name }}</td>
+                <td>{{ contact.phone_number }}</td>
+                <td>{{ contact.address }}</td>
+                <td><a href="tel:{{ contact.phone_number }}">📞</a></td>
+                <td><a href="sms:{{ contact.phone_number }}">💬</a></td>
+                <td><button onclick="editContact({{ contact.id }})">✏️ Edit</button></td>
+                <td><button onclick="deleteContact({{ contact.id }})">❌ Delete</button></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
+
