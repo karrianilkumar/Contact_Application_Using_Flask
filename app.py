@@ -4,11 +4,22 @@ from flask_sqlalchemy import SQLAlchemy
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://postgres:Anil12345@localhost/contact_db"
+# app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://postgres:1234@localhost/contact_db"
+app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://contact_db_vh60_user:GMowdopFWy0cbQdGEMj2qZBdSHmm8vsd@dpg-d86vbv5ckfvc73bkakc0-a.oregon-postgres.render.com/contact_db_vh60"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
+# DATABASES = {
+#     'default':{
+#         'ENGINE':'django.db.backends.postgresql',
+#         'NAME':'bus_ticket_booking_system',
+#         'USER':'postgres',
+#         'PASSWORD':'1234',
+#         'HOST':'localhost',
+#         'PORT':'5432',
+#     }
+# }
 # Define Contact Model
 class Contact(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -28,15 +39,18 @@ def index():
 def update_contact(id):
     contact = Contact.query.get(id)
     if contact:
-        field = request.form.get("field")
-        value = request.form.get("value")
+        name = request.form.get("name")
+        phone_number = request.form.get("phone_number")
+        address = request.form.get("address")
 
-        if field == "name":
-            contact.name = value
-        elif field == "phone_number":
-            contact.phone_number = value
-        elif field == "address":
-            contact.address = value
+        if name:
+            contact.name = name
+        if phone_number:
+            if Contact.query.filter(Contact.phone_number == phone_number, Contact.id != id).first():
+                return jsonify({"status": "error", "message": "Phone number already exists!"})
+            contact.phone_number = phone_number
+        if address:
+            contact.address = address
 
         db.session.commit()
         return jsonify({"status": "success"})
