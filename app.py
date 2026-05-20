@@ -1,11 +1,26 @@
+import os
+from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
-app = Flask(__name__)
-app.secret_key = "supersecretkey"
+# Load local environment file if present
+env_path = Path(__file__).resolve().parent / ".env"
+if env_path.exists():
+    for line in env_path.read_text().splitlines():
+        if not line or line.strip().startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        if key and value:
+            os.environ.setdefault(key.strip(), value.strip())
 
-# app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://postgres:1234@localhost/contact_db"
-app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://contact_db_vh60_user:GMowdopFWy0cbQdGEMj2qZBdSHmm8vsd@dpg-d86vbv5ckfvc73bkakc0-a.oregon-postgres.render.com/contact_db_vh60"
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "supersecretkey")
+
+# Use DATABASE_URL from environment, local .env, or fallback to SQLite for development
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL",
+    os.environ.get("SQLALCHEMY_DATABASE_URI", "sqlite:///contacts.db")
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
