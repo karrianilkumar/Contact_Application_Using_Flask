@@ -125,7 +125,7 @@ def send_otp_email(email, otp):
             <p><em>Contact Application</em></p>
             """
         )
-        mail.send(msg)
+        # mail.send(msg)
         return True
     except Exception as e:
         print("Error sending email:", str(e))
