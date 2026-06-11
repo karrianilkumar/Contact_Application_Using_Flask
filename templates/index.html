@@ -392,20 +392,36 @@
     </script>
 </head>
 <body>
-    <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
-        <h2>Contacts List</h2>
-        <div>
-            {% if session_user %}
-                <span style="margin-right:8px">Hello, {{ session_user }}</span>
-                <form method="post" action="/logout" style="display:inline">
-                    <button type="submit">Logout</button>
-                </form>
-            {% else %}
-                <a href="/login"><button>Login</button></a>
-                <a href="/register"><button>Register</button></a>
-            {% endif %}
-        </div>
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;position:relative;padding:10px 20px;">
+
+    <!-- Left Side Logo -->
+    <div>
+        <div style="font-size:50px;">
+       👥
+</div>
     </div>
+
+    <!-- Center Title -->
+    <div style="position:absolute;left:50%;transform:translateX(-50%);">
+        <h1 style="margin:0;color:#4a76f0;">Contact Application</h1>
+    </div>
+
+    <!-- Right Side User + Logout -->
+    <div>
+        {% if session_user %}
+            <span style="margin-right:10px;font-weight:bold;">
+                Hello, {{ session_user }}
+            </span>
+            <form method="post" action="/logout" style="display:inline">
+                <button type="submit">Logout</button>
+            </form>
+        {% else %}
+            <a href="/login"><button>Login</button></a>
+            <a href="/register"><button>Register</button></a>
+        {% endif %}
+    </div>
+
+</div>
     <div class="controls-row">
         <input type="text" id="searchBox" onkeyup="searchContacts()" placeholder="Search contacts...">
         <button onclick="toggleForm()">Create Contact</button>
