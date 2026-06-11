@@ -1,0 +1,4 @@
+# PyJWT
+# werkzeug
+# flask
+# flask_sqlalchemy

@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             margin: 20px;
             background-color: #f4f6fb;
             color: #333;
@@ -52,6 +52,7 @@
             padding: 0 18px;
             transition: background-color 0.2s ease;
             white-space: nowrap;
+            font-size: 14px;
         }
         @media (max-width: 540px) {
             .controls-row {
@@ -116,8 +117,159 @@
         tbody tr:hover {
             background-color: #f7f9ff;
         }
+        
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            animation: fadeIn 0.2s ease;
+        }
+        
+        .modal-overlay.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            animation: slideDown 0.3s ease;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 12px;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+        
+        .modal-close:hover {
+            color: #333;
+            background-color: transparent;
+        }
+        
+        .form-group {
+            margin-bottom: 18px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .form-group input {
+            padding: 12px 14px;
+            border: 1px solid #d0d7de;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #4a76f0;
+            box-shadow: 0 0 0 3px rgba(74, 118, 240, 0.1);
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #f0f0f0;
+        }
+        
+        .modal-actions button {
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-cancel {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-cancel:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .btn-save {
+            background-color: #4a76f0;
+            color: white;
+        }
+        
+        .btn-save:hover {
+            background-color: #3a5fe0;
+        }
     </style>
     <script>
+        let currentEditId = null;
+
         function searchContacts() {
             let input = document.getElementById("searchBox").value.toLowerCase();
             let rows = document.querySelectorAll("tbody tr");
@@ -146,6 +298,7 @@
 
             fetch("/add_contact", {
                 method: "POST",
+                credentials: 'include',
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                 body: `name=${encodeURIComponent(name)}&phone_number=${encodeURIComponent(phone)}&address=${encodeURIComponent(address)}`
             })
@@ -164,44 +317,94 @@
             formSection.classList.toggle("show-form");
         }
 
-        function editContact(id) {
+        function openEditModal(id) {
             let row = document.getElementById("row-" + id);
             let name = row.cells[1].innerText;
             let phone = row.cells[2].innerText;
             let address = row.cells[3].innerText;
             
-            let newName = prompt("Enter new name:", name);
-            let newPhone = prompt("Enter new phone number:", phone);
-            let newAddress = prompt("Enter new address:", address);
+            currentEditId = id;
+            document.getElementById("editName").value = name;
+            document.getElementById("editPhone").value = phone;
+            document.getElementById("editAddress").value = address;
             
-            if (newName && newPhone && newAddress) {
-                fetch(`/update_contact/${id}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: `name=${encodeURIComponent(newName)}&phone_number=${encodeURIComponent(newPhone)}&address=${encodeURIComponent(newAddress)}`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === "success") {
-                        location.reload();
-                    } else {
-                        alert(data.message || "Unable to update contact.");
-                    }
-                });
-            }
+            document.getElementById("editModalOverlay").classList.add("show");
+            document.getElementById("editName").focus();
         }
+
+        function closeEditModal() {
+            document.getElementById("editModalOverlay").classList.remove("show");
+            currentEditId = null;
+        }
+
+        function saveEditContact() {
+            let newName = document.getElementById("editName").value.trim();
+            let newPhone = document.getElementById("editPhone").value.trim();
+            let newAddress = document.getElementById("editAddress").value.trim();
+            
+            if (!newName || !newPhone || !newAddress) {
+                alert("All fields are required.");
+                return;
+            }
+
+            fetch(`/update_contact/${currentEditId}`, {
+                method: "POST",
+                credentials: 'include',
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `name=${encodeURIComponent(newName)}&phone_number=${encodeURIComponent(newPhone)}&address=${encodeURIComponent(newAddress)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    location.reload();
+                } else {
+                    alert(data.message || "Unable to update contact.");
+                }
+            });
+        }
+
+        function editContact(id) {
+            openEditModal(id);
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener("DOMContentLoaded", function() {
+            document.getElementById("editModalOverlay").addEventListener("click", function(e) {
+                if (e.target === this) {
+                    closeEditModal();
+                }
+            });
+
+            // Allow Enter key to save
+            document.getElementById("editAddress").addEventListener("keypress", function(e) {
+                if (e.key === "Enter") {
+                    saveEditContact();
+                }
+            });
+        });
         
         function deleteContact(id) {
             if (confirm("Are you sure you want to delete this contact?")) {
-                fetch(`/delete_contact/${id}`, { method: "DELETE" })
+                fetch(`/delete_contact/${id}`, { method: "DELETE", credentials: 'include' })
                 .then(() => location.reload());
             }
         }
     </script>
 </head>
 <body>
-    <div class="page-header">
+    <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
         <h2>Contacts List</h2>
+        <div>
+            {% if session_user %}
+                <span style="margin-right:8px">Hello, {{ session_user }}</span>
+                <form method="post" action="/logout" style="display:inline">
+                    <button type="submit">Logout</button>
+                </form>
+            {% else %}
+                <a href="/login"><button>Login</button></a>
+                <a href="/register"><button>Register</button></a>
+            {% endif %}
+        </div>
     </div>
     <div class="controls-row">
         <input type="text" id="searchBox" onkeyup="searchContacts()" placeholder="Search contacts...">
@@ -244,6 +447,38 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <!-- Edit Contact Modal -->
+    <div id="editModalOverlay" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Contact</h2>
+                <button class="modal-close" onclick="closeEditModal()">✕</button>
+            </div>
+            
+            <form onsubmit="event.preventDefault(); saveEditContact()">
+                <div class="form-group">
+                    <label for="editName">Contact Name</label>
+                    <input type="text" id="editName" placeholder="Enter contact name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="editPhone">Phone Number</label>
+                    <input type="text" id="editPhone" placeholder="Enter phone number" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="editAddress">Address</label>
+                    <input type="text" id="editAddress" placeholder="Enter address" required>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+                    <button type="submit" class="btn-save">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 </html>
 

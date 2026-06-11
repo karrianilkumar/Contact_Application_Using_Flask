@@ -1,2 +1,10 @@
 contact/
 instance/
+migrate_add_email_name
+migrate_db
+migrate_fix_usrename.py
+migrate_add_userid_postgres.py
+requirement1.txt
+smoke_test.py
+requirements_extra.txt
+show_contact_columns.py
