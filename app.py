@@ -7,6 +7,10 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
+# Werkzeug is a German word used in Python (especially with Flask).
+# Pronunciation:
+# English approximation: "Verk-tsoyg"
+# Telugu pronunciation: "వెర్క్-త్సోయ్గ్" (or "వేర్‌క్-త్సోయ్గ్")
 import datetime
 import jwt
 import random
@@ -41,7 +45,11 @@ app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD", "your-app-password
 app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@contactapp.com")
 
 db = SQLAlchemy(app)
+# This line attaches the database functionality to your Flask app.
+# db becomes the object you use to create tables and perform database operations.
 mail = Mail(app)
+# This line connects email functionality to your Flask app.
+# mail is the object used to send emails.
 
 # In-memory OTP storage: {email: {"otp": "123456", "expiry": datetime, "data": {name, password_hash}}}
 otp_storage = {}
@@ -64,7 +72,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(200), nullable=False)
     username = db.Column(db.String(80), nullable=True)  # kept for backward compatibility, now optional
     role = db.Column(db.String(20), default="user")  # simple RBAC: 'user' or 'admin'
-
+    # check_password() is a custom method used to verify whether the password entered by the user matches the hashed password stored in the database. It returns True if it matches, otherwise False.
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
@@ -100,7 +108,7 @@ with app.app_context():
 # ================ OTP Helper Functions ================
 def generate_otp():
     """Generate a random 6-digit OTP"""
-    return ''.join(random.choices(string.digits, k=6))
+    return ''.join(random.choices(string.digits, k=6)) # string.digits contains 0123456789 => ''.join(list)
 
 
 def send_otp_email(email, otp):

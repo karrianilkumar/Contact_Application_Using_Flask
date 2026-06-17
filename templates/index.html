@@ -449,21 +449,142 @@
             </tr>
         </thead>
         <tbody>
-            {% for contact in contacts %}
-            <tr id="row-{{ contact.id }}">
-                <td>{{ loop.index }}</td>
-                <td>{{ contact.name }}</td>
-                <td>{{ contact.phone_number }}</td>
-                <td>{{ contact.address }}</td>
-                <td><a href="tel:{{ contact.phone_number }}">📞</a></td>
-                <td><a href="sms:{{ contact.phone_number }}">💬</a></td>
-                <td><button onclick="editContact({{ contact.id }})">✏️ Edit</button></td>
-                <td><button onclick="deleteContact({{ contact.id }})">❌ Delete</button></td>
-            </tr>
-            {% endfor %}
-        </tbody>
+    {% if contacts %}
+        {% for contact in contacts %}
+        <tr id="row-{{ contact.id }}">
+            <td>{{ loop.index }}</td>
+            <td>{{ contact.name }}</td>
+            <td>{{ contact.phone_number }}</td>
+            <td>{{ contact.address }}</td>
+            <td><a href="tel:{{ contact.phone_number }}">📞</a></td>
+            <td><a href="sms:{{ contact.phone_number }}">💬</a></td>
+            <td><button onclick="editContact({{ contact.id }})">✏️ Edit</button></td>
+            <td><button onclick="deleteContact({{ contact.id }})">❌ Delete</button></td>
+        </tr>
+        {% endfor %}
+    {% else %}
+        <tr>
+            <td colspan="8" style="text-align: center; padding: 40px 20px;">
+                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">No Contacts Found</div>
+                <div style="font-size: 14px; color: #666; margin-bottom: 20px;">You don't have any contacts yet.</div>
+            </td>
+        </tr>
+    {% endif %}
+</tbody>
     </table>
+    <!-- Pagination Controls -->
+<!-- Pagination Controls -->
+{% if pagination.pages > 1 %}
+<div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 25px; margin-bottom: 20px; flex-wrap: wrap;">
+    
+    <!-- Previous Page Button (<) -->
+    {% if pagination.has_prev %}
+        <a href="{{ url_for('index', page=pagination.prev_num, per_page=request.args.get('per_page', 10), q=request.args.get('q', '')) }}">
+            <button style="padding: 8px 16px; cursor: pointer;">&lt; Previous</button>
+        </a>
+    {% else %}
+        <button style="padding: 8px 16px; background-color: #ccc; cursor: not-allowed;" disabled>&lt; Previous</button>
+    {% endif %}
 
+    <!-- Page Dropdown with Scrollbar -->
+    <div style="position: relative;">
+        <select id="pageDropdown" onchange="goToPage(this.value)" 
+                style="padding: 8px 12px; border-radius: 8px; border: 1px solid #ccc; 
+                       background-color: white; cursor: pointer; font-size: 14px;
+                       min-width: 100px; max-height: 35px;">
+            <option value="">Select page...</option>
+            {% for page_num in range(1, pagination.pages + 1) %}
+                <option value="{{ page_num }}" {% if page_num == pagination.page %}selected{% endif %}>
+                    Page {{ page_num }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Next Page Button (>) -->
+    {% if pagination.has_next %}
+        <a href="{{ url_for('index', page=pagination.next_num, per_page=request.args.get('per_page', 10), q=request.args.get('q', '')) }}">
+            <button style="padding: 8px 16px; cursor: pointer;">Next &gt;</button>
+        </a>
+    {% else %}
+        <button style="padding: 8px 16px; background-color: #ccc; cursor: not-allowed;" disabled>Next &gt;</button>
+    {% endif %}
+</div>
+
+<!-- Display 5 Page Buttons (shows 5 pages around current page) -->
+<div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+    {% set current_page = pagination.page %}
+    {% set total_pages = pagination.pages %}
+    
+    {# Calculate which 5 pages to show #}
+    {% if total_pages <= 5 %}
+        {% set start_page = 1 %}
+        {% set end_page = total_pages %}
+    {% else %}
+        {% set start_page = [current_page - 2, 1] | max %}
+        {% set end_page = [current_page + 2, total_pages] | min %}
+        
+        {# Adjust if near the beginning #}
+        {% if start_page == 1 %}
+            {% set end_page = 5 %}
+        {% endif %}
+        
+        {# Adjust if near the end #}
+        {% if end_page == total_pages %}
+            {% set start_page = total_pages - 4 %}
+        {% endif %}
+    {% endif %}
+    
+    <!-- Show first page and ellipsis if needed -->
+    {% if start_page > 1 %}
+        <a href="{{ url_for('index', page=1, per_page=request.args.get('per_page', 10), q=request.args.get('q', '')) }}">
+            <button style="padding: 8px 14px;">1</button>
+        </a>
+        {% if start_page > 2 %}
+            <span style="padding: 8px 4px;">...</span>
+        {% endif %}
+    {% endif %}
+    
+    <!-- Show 5 page buttons -->
+    {% for page_num in range(start_page, end_page + 1) %}
+        {% if page_num == pagination.page %}
+            <button style="padding: 8px 16px; background-color: #4a76f0; color: white; font-weight: bold; border: none;" disabled>{{ page_num }}</button>
+        {% else %}
+            <a href="{{ url_for('index', page=page_num, per_page=request.args.get('per_page', 10), q=request.args.get('q', '')) }}">
+                <button style="padding: 8px 16px; cursor: pointer;">{{ page_num }}</button>
+            </a>
+        {% endif %}
+    {% endfor %}
+    
+    <!-- Show last page and ellipsis if needed -->
+    {% if end_page < total_pages %}
+        {% if end_page < total_pages - 1 %}
+            <span style="padding: 8px 4px;">...</span>
+        {% endif %}
+        <a href="{{ url_for('index', page=total_pages, per_page=request.args.get('per_page', 10), q=request.args.get('q', '')) }}">
+            <button style="padding: 8px 14px;">{{ total_pages }}</button>
+        </a>
+    {% endif %}
+</div>
+
+<!-- Page Info -->
+<div style="text-align: center; margin-top: 15px; font-size: 14px; color: #666;">
+    Page {{ pagination.page }} of {{ pagination.pages }} | Total {{ pagination.total }} contacts
+</div>
+
+<script>
+    function goToPage(pageNum) {
+        if (pageNum) {
+            let currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('page', pageNum);
+            window.location.href = currentUrl.toString();
+        }
+    }
+    
+    // Optional: Add scrollbar to dropdown (browsers automatically add scrollbar for many items)
+    // The dropdown will have a scrollbar when there are more than ~15-20 items
+</script>
+{% endif %}
     <!-- Edit Contact Modal -->
     <div id="editModalOverlay" class="modal-overlay">
         <div class="modal-content">
