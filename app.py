@@ -15,17 +15,19 @@ import datetime
 import jwt
 import random
 import string
+from sqlalchemy import or_
 
 # Load local environment file if present
-env_path = Path(__file__).resolve().parent / ".env"
-if env_path.exists():
-    for line in env_path.read_text().splitlines():
-        if not line or line.strip().startswith("#"):
+env_path = Path(__file__).resolve().parent / ".env" # to get the folder path which contains the .env file 
+if env_path.exists(): # if the path is not none 
+    for line in env_path.read_text().splitlines(): # convert all lines into the python list 
+        if not line or line.strip().startswith("#"): # 
             continue
-        key, _, value = line.partition("=")
-        if key and value:
+        key, _, value = line.partition("=") # key = db_host , _ = = , , value = "db_host_value"
+        if key and value: 
             os.environ.setdefault(key.strip(), value.strip())
-
+            # print(os.environ["DB_HOST"])
+            
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "supersecretkey")
 
@@ -74,7 +76,12 @@ class User(db.Model):
     role = db.Column(db.String(20), default="user")  # simple RBAC: 'user' or 'admin'
     # check_password() is a custom method used to verify whether the password entered by the user matches the hashed password stored in the database. It returns True if it matches, otherwise False.
     def check_password(self, password):
+#         check_password_hash(
+#     "scrypt:32768:8:1$...",
+#     "admin123"
+# )
         return check_password_hash(self.password_hash, password)
+    
 
 
 class Contact(db.Model):
@@ -105,6 +112,49 @@ with app.app_context():
         db.create_all()
 
 
+from functools import wraps
+def jwt_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        token = request.cookies.get("jwt_token")
+        
+        print(f"🔍 Token in cookie: {'Yes' if token else 'No'}")
+        if token:
+            print(f"🔑 Token value: {token[:50]}...")
+        
+        if not token:
+            if request.headers.get('Accept', '').startswith('text/html'):
+                flash("Please login to access this page")
+                return redirect(url_for('login_page'))
+            return jsonify({"status": "error", "message": "Login required"}), 401
+        
+        try:
+            payload = decode_jwt(token)
+            print(f"📦 Decoded payload: {payload}")
+        except Exception as e:
+            print(f"❌ Decode error: {str(e)}")
+            payload = None
+        
+        if not payload:
+            if request.headers.get('Accept', '').startswith('text/html'):
+                flash("Session expired. Please login again.")
+                return redirect(url_for('login_page'))
+            return jsonify({"status": "error", "message": "Invalid Token"}), 401
+        
+        user = User.query.get(payload["sub"])
+        print(f"👤 User found: {user.name if user else 'None'}")
+        
+        if not user:
+            if request.headers.get('Accept', '').startswith('text/html'):
+                flash("User not found. Please login again.")
+                return redirect(url_for('login_page'))
+            return jsonify({"status": "error", "message": "User not found"}), 401
+        
+        request.user = user
+        return fn(*args, **kwargs)
+    
+    return wrapper
+
 # ================ OTP Helper Functions ================
 def generate_otp():
     """Generate a random 6-digit OTP"""
@@ -133,7 +183,7 @@ def send_otp_email(email, otp):
             <p><em>Contact Application</em></p>
             """
         )
-        # mail.send(msg)
+        mail.send(msg)
         return True
     except Exception as e:
         print("Error sending email:", str(e))
@@ -198,67 +248,106 @@ def verify_otp(email, otp):
     except Exception as e:
         return False, f"Error creating user: {str(e)}"
 
-
 @app.route("/")
+@jwt_required
 def index():
-    # show only user's own contacts if logged in; redirect to login if not
-    user_id = session.get("user_id")
-    if not user_id:
+    user = request.user
+    if not user:
         flash("Please login to view contacts")
         return redirect(url_for('login_page'))
     
-    session_user = None
+    user_id = user.id
     q = request.args.get("q")
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 10))
 
-    # Show ONLY contacts belonging to the logged-in user
     query = Contact.query.filter(Contact.user_id == user_id)
-
     if q:
-        query = query.filter(Contact.name.ilike(f"%{q}%"))
-
+        query = query.filter(
+            or_(
+                Contact.name.ilike(f"%{q}%"),
+                Contact.phone_number.ilike(f"%{q}%")
+            )
+        )
+    
     contacts = query.order_by(Contact.name).paginate(page=page, per_page=per_page, error_out=False)
-    u = User.query.get(user_id)
-    session_user = u.name if u else None
+    session_user = user.name if user else None
     return render_template("index.html", contacts=contacts.items, pagination=contacts, session_user=session_user)
 
 @app.route("/update_contact/<int:id>", methods=["POST"])
+@jwt_required
 def update_contact(id):
-    user_id = session.get("user_id")
-    if not user_id:
-        return jsonify({"status": "error", "message": "Not authenticated"}), 401
+    user = request.user
+    user_id = user.id
     
+    # Get the contact
     contact = Contact.query.get(id)
     if not contact:
         return jsonify({"status": "error", "message": "Contact not found"}), 404
     
-    # RBAC: only owner or admin can update
-    user = User.query.get(user_id)
-    if contact.user_id != user_id and (not user or user.role != "admin"):
+    # Check ownership
+    # is_owner = contact.user_id == user_id
+    # is_admin = user and user.role == "admin"
+    if contact.user_id != user_id and user.role != "admin":
         return jsonify({"status": "error", "message": "You can only edit your own contacts"}), 403
     
-    name = request.form.get("name")
-    phone_number = request.form.get("phone_number")
-    address = request.form.get("address")
-
-    if name:
+    # Get form data
+    name = request.form.get("name", "").strip()
+    phone_number = request.form.get("phone_number", "").strip()
+    address = request.form.get("address", "").strip()
+    
+    # Track what's being updated
+    updates = []
+    
+    # Update name if provided and different
+    if name and name != contact.name:
         contact.name = name
-    if phone_number:
-        # Check uniqueness: another contact with same phone in user's contacts
-        existing = Contact.query.filter(Contact.phone_number == phone_number, Contact.id != id, Contact.user_id == user_id).first()
+        updates.append("name")
+    
+    # Update phone number if provided and different
+    if phone_number and phone_number != contact.phone_number:
+        # Check uniqueness (excluding this contact)
+        existing = Contact.query.filter(
+            Contact.phone_number == phone_number, 
+            Contact.id != id,
+            Contact.user_id == user_id
+        ).first()
+        
         if existing:
-            return jsonify({"status": "error", "message": "Phone number already exists in your contacts!"})
+            return jsonify({
+                "status": "error", 
+                "message": f"Phone number '{phone_number}' already exists in your contacts!"
+            }), 400
+        
         contact.phone_number = phone_number
-    if address:
+        updates.append("phone number")
+    
+    # Update address if provided and different
+    if address and address != contact.address:
         contact.address = address
-
+        updates.append("address")
+    
+    # Check if anything was actually updated
+    if not updates:
+        return jsonify({
+            "status": "info", 
+            "message": "No changes were made to the contact."
+        }), 200
+    
+    # Save changes
     db.session.commit()
-    return jsonify({"status": "success"})
+    
+    return jsonify({
+        "status": "success", 
+        "message": f"Contact updated successfully! Updated: {', '.join(updates)}"
+    }) 
 
 @app.route("/delete_contact/<int:id>", methods=["DELETE"])
+@jwt_required
 def delete_contact(id):
-    user_id = session.get("user_id")
+    # user_id = session.get("user_id")
+    user = request.user
+    user_id = user.id
     if not user_id:
         return jsonify({"status": "error", "message": "Not authenticated"}), 401
     
@@ -275,11 +364,13 @@ def delete_contact(id):
     db.session.commit()
     return jsonify({"status": "success"})
 
+
+
 @app.route("/add_contact", methods=["POST"])
+@jwt_required
 def add_contact():
-    user_id = session.get("user_id")
-    if not user_id:
-        return jsonify({"status": "error", "message": "Not authenticated"}), 401
+    user = request.user
+    user_id = user.id
     
     name = request.form.get("name")
     phone_number = request.form.get("phone_number")
@@ -297,14 +388,13 @@ def add_contact():
     db.session.commit()
     return jsonify({"status": "success", "contact": {"id": new_contact.id, "name": name, "phone_number": phone_number, "address": address}})
 
-
 # ------------------ Authentication routes ------------------
 def _jwt_secret():
     return os.environ.get("JWT_SECRET", app.secret_key)
 
 def generate_jwt(user):
     payload = {
-        "sub": user.id,
+        "sub": str(user.id),  # ✅ Must be string
         "name": user.name,
         "email": user.email,
         "role": user.role,
@@ -314,8 +404,18 @@ def generate_jwt(user):
 
 def decode_jwt(token):
     try:
-        return jwt.decode(token, _jwt_secret(), algorithms=["HS256"])
-    except Exception:
+        print(f"🔐 Decoding token with secret: {_jwt_secret()[:10]}...")
+        decoded = jwt.decode(token, _jwt_secret(), algorithms=["HS256"])
+        print(f"✅ Decoded successfully: {decoded}")
+        return decoded
+    except jwt.ExpiredSignatureError:
+        print("❌ Token expired")
+        return None
+    except jwt.InvalidTokenError as e:
+        print(f"❌ Invalid token: {str(e)}")
+        return None
+    except Exception as e:
+        print(f"❌ Unexpected error: {str(e)}")
         return None
 
 
@@ -383,25 +483,36 @@ def verify_otp_post():
         flash(message)
         return redirect(url_for('verify_otp_page', email=email))
 
-
 @app.route("/login", methods=["POST"])
 def login():
     email = request.form.get("email")
     password = request.form.get("password")
     user = User.query.filter_by(email=email).first()
+    
     if not user or not user.check_password(password):
-        # If form submission, redirect back to login with message
-        if request.form:
-            flash("Invalid email or password. Please try again or register.")
-            return redirect(url_for('login_page'))
-        return jsonify({"status": "error", "message": "Invalid credentials"}), 401
-    # create session and JWT
-    session["user_id"] = user.id
+        flash("Invalid email or password. Please try again or register.")
+        return redirect(url_for('login_page'))
+    
     token = generate_jwt(user)
-    # if form submission redirect to home
-    if request.form:
-        return redirect(url_for('index'))
-    return jsonify({"status": "success", "token": token})
+    
+    # Create response with redirect
+    response = redirect(url_for('index'))
+    
+    # Set the cookie on the response
+    response.set_cookie(
+        "jwt_token",
+        token,
+        httponly=True,
+        secure=False,  # Set to True in production with HTTPS
+        samesite='Lax',
+        max_age=60 * 60 * 12  # 12 hours
+    )
+    
+    # Log the cookie being set (for debugging)
+    print(f"✅ Cookie set for user: {user.email}")
+    print(f"🔑 Token: {token[:50]}...")
+    
+    return response
 
 
 @app.route("/login", methods=["GET"])
@@ -411,84 +522,13 @@ def login_page():
 
 @app.route("/logout", methods=["POST", "GET"])
 def logout():
-    session.pop("user_id", None)
+    response = redirect(url_for("login_page"))
+    response.delete_cookie("jwt_token")
     flash("Logged out successfully")
-    return redirect(url_for('login_page'))
-
-
-# ------------------ Simple REST API (JWT protected) ------------------
-def jwt_required(fn):
-    def wrapper(*args, **kwargs):
-        auth = request.headers.get("Authorization", "")
-        if not auth.startswith("Bearer "):
-            return jsonify({"status": "error", "message": "Missing token"}), 401
-        token = auth.split(None, 1)[1]
-        data = decode_jwt(token)
-        if not data:
-            return jsonify({"status": "error", "message": "Invalid token"}), 401
-        request.user = User.query.get(data.get("sub"))
-        return fn(*args, **kwargs)
-    wrapper.__name__ = fn.__name__
-    return wrapper
-
-
-@app.route("/api/contacts", methods=["GET"])
-@jwt_required
-def api_get_contacts():
-    user = request.user
-    page = int(request.args.get("page", 1))
-    per_page = int(request.args.get("per_page", 20))
-    q = request.args.get("q")
-    # Show ONLY user's own contacts
-    query = Contact.query.filter(Contact.user_id == user.id)
-    if q:
-        query = query.filter(Contact.name.ilike(f"%{q}%"))
-    res = query.order_by(Contact.name).paginate(page=page, per_page=per_page, error_out=False)
-    items = [{"id": c.id, "name": c.name, "phone_number": c.phone_number, "address": c.address, "user_id": c.user_id} for c in res.items]
-    return jsonify({"status": "success", "contacts": items, "total": res.total, "user": user.name})
-
-
-@app.route("/api/contact", methods=["POST"])
-@jwt_required
-def api_create_contact():
-    user = request.user
-    data = request.get_json() or {}
-    name = data.get("name")
-    phone = data.get("phone_number")
-    address = data.get("address")
-    if not (name and phone and address):
-        return jsonify({"status": "error", "message": "name, phone_number and address required"}), 400
-    if Contact.query.filter_by(phone_number=phone).first():
-        return jsonify({"status": "error", "message": "Phone number exists"}), 400
-    c = Contact(name=name, phone_number=phone, address=address, user_id=user.id)
-    db.session.add(c)
-    db.session.commit()
-    return jsonify({"status": "success", "contact": {"id": c.id, "name": c.name}, "user": user.name})
-
-
-@app.route("/api/contact/<int:id>", methods=["PUT", "DELETE"])
-@jwt_required
-def api_modify_contact(id):
-    user = request.user
-    contact = Contact.query.get(id)
-    if not contact:
-        return jsonify({"status": "error", "message": "Not found"}), 404
-    if request.method == "DELETE":
-        if contact.user_id != user.id and user.role != "admin":
-            return jsonify({"status": "error", "message": "Forbidden"}), 403
-        db.session.delete(contact)
-        db.session.commit()
-        return jsonify({"status": "success"})
-    # PUT
-    data = request.get_json() or {}
-    if contact.user_id != user.id and user.role != "admin":
-        return jsonify({"status": "error", "message": "Forbidden"}), 403
-    contact.name = data.get("name", contact.name)
-    contact.phone_number = data.get("phone_number", contact.phone_number)
-    contact.address = data.get("address", contact.address)
-    db.session.commit()
-    return jsonify({"status": "success", "contact": {"id": contact.id}})
-
+    return response
+    # session.pop("user_id", None)
+    # flash("Logged out successfully")
+    # return redirect(url_for('login_page'))
 
 
 if __name__ == "__main__":
