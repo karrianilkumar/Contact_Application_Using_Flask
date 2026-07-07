@@ -357,9 +357,16 @@
             .then(data => {
                 if (data.status === "success") {
                     location.reload();
+                } else if (data.status === "info") {
+                    alert(data.message);
+                    closeEditModal();
                 } else {
                     alert(data.message || "Unable to update contact.");
                 }
+            })
+            .catch(error => {
+                alert("An error occurred while updating the contact.");
+                console.error("Error:", error);
             });
         }
 
@@ -382,11 +389,11 @@
                 }
             });
         });
-        
+        {# User clicks the Delete button → Browser asks for confirmation → Sends a delete request to Flask → Flask deletes the contact → Browser reloads the page. #}
         function deleteContact(id) {
             if (confirm("Are you sure you want to delete this contact?")) {
-                fetch(`/delete_contact/${id}`, { method: "DELETE", credentials: 'include' })
-                .then(() => location.reload());
+                fetch(`/delete_contact/${id}`, { method: "DELETE", credentials: 'include' }) 
+                .then(() => location.reload()); // This refreshes the current webpage.
             }
         }
     </script>

@@ -8,16 +8,17 @@
     <style>body{font-family:Arial, sans-serif;padding:20px;background:#f4f6fb} .card{max-width:420px;margin:40px auto;padding:20px;background:#fff;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}</style>
 </head>
 <body>
-        <div class="card">
-                <h2>Login</h2>
-                {% with messages = get_flashed_messages() %}
-                    {% if messages %}
-                        <div style="background:#fff6e5;border:1px solid #ffdca8;padding:8px;margin-bottom:12px;border-radius:6px;">
-                            {% for m in messages %}{{ m }}{% if not loop.last %}<br>{% endif %}{% endfor %}
-                        </div>
-                    {% endif %}
-                {% endwith %}
-        <form id="loginForm" method="post" action="/login">
+    <div class="card">
+        <h2>Login</h2>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div style="background:#fff6e5;border:1px solid #ffdca8;padding:8px;margin-bottom:12px;border-radius:6px;">
+                    {% for m in messages %}{{ m }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <form method="POST" action="/login">
             <div>
                 <label>Email</label><br>
                 <input type="email" name="email" required>
